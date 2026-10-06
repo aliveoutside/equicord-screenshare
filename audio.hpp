@@ -9,7 +9,7 @@
 #include <string>
 
 void audio_locate(dl_phdr_info *info, const ElfW(Rela) & entry, const char *name);
-std::string audio_install(uintptr_t base, bool (*writable)(const void *));
+std::string audio_install(const std::string &path, uintptr_t base, bool (*writable)(const void *));
 void audio_register(napi_env env, napi_value exports);
 void audio_clear_selection();
 void audio_capture_end();

@@ -515,7 +515,7 @@ extern "C" const char *equicord_capture_install() {
             return "This Discord version has an incompatible capture interface.";
         }
     }
-    audio_install(module_base, writable);
+    audio_install(module_path, module_base, writable);
     for (unsigned i = 0; i < 4; ++i) {
         __atomic_store_n(slots[i], replacements[i], __ATOMIC_RELEASE);
     }

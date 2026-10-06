@@ -5,6 +5,7 @@
  */
 #include "audio.hpp"
 #include "audio-backend.hpp"
+#include "audio-symbols.hpp"
 #include <pulse/pulseaudio.h>
 #include <atomic>
 #include <cstring>
@@ -190,22 +191,29 @@ void audio_locate(dl_phdr_info *info, const ElfW(Rela) & entry, const char *name
     }
 }
 
-std::string audio_install(uintptr_t base, bool (*writable)(const void *)) {
+std::string audio_install(const std::string &path, uintptr_t base, bool (*writable)(const void *)) {
+    const auto symbols = resolve_audio_symbols(path, base);
+    if (!symbols.callback || !symbols.attached_pid || !symbols.pulse_table) {
+        hook_error = "Could not resolve Discord's screenshare audio functions.";
+        return hook_error;
+    }
     constexpr unsigned char callback_code[] = {
-        0x85, 0xd2, 0x74, 0x01, 0xc3, 0x48, 0x89, 0xcf, 0xe9, 0xe3, 0x0e, 0x00, 0x00};
+        0x85, 0xd2, 0x74, 0x01, 0xc3, 0x48, 0x89, 0xcf, 0xe9};
     constexpr unsigned char pid_code[] = {0x8b, 0x87, 0x80, 0x02, 0x00, 0x00, 0xc3};
-    constexpr unsigned char table_code[] = {0x55, 0x48, 0x89, 0xe5, 0x53, 0x48, 0x83, 0xec,
-                                            0x18, 0x0f, 0xb6, 0x05, 0x10, 0xa1, 0x8f, 0x01,
-                                            0x84, 0xc0, 0x74, 0x42, 0x48, 0x8b, 0x05, 0x0d,
-                                            0xa1, 0x8f, 0x01, 0x48, 0x83, 0xf8, 0xff, 0x74};
-    if (!matches_code(base + 0x450bc0, callback_code, sizeof(callback_code))
-        || !matches_code(base + 0x452540, pid_code, sizeof(pid_code))
-        || !matches_code(base + 0xa61c70, table_code, sizeof(table_code))) {
+    constexpr unsigned char table_code[] = {
+        0x55, 0x48, 0x89, 0xe5, 0x53, 0x48, 0x83, 0xec, 0x18, 0x0f, 0xb6, 0x05};
+    constexpr unsigned char table_load[] = {0x84, 0xc0, 0x74, 0x42, 0x48, 0x8b, 0x05};
+    constexpr unsigned char table_check[] = {0x48, 0x83, 0xf8, 0xff, 0x74};
+    if (!matches_code(symbols.callback, callback_code, sizeof(callback_code))
+        || !matches_code(symbols.attached_pid, pid_code, sizeof(pid_code))
+        || !matches_code(symbols.pulse_table, table_code, sizeof(table_code))
+        || !matches_code(symbols.pulse_table + 16, table_load, sizeof(table_load))
+        || !matches_code(symbols.pulse_table + 27, table_check, sizeof(table_check))) {
         hook_error = "This Discord version has an incompatible screenshare audio interface.";
         return hook_error;
     }
-    soundshare_callback = reinterpret_cast<pa_sink_input_info_cb_t>(base + 0x450bc0);
-    attached_pid = reinterpret_cast<AttachedPid>(base + 0x452540);
+    soundshare_callback = reinterpret_cast<pa_sink_input_info_cb_t>(symbols.callback);
+    attached_pid = reinterpret_cast<AttachedPid>(symbols.attached_pid);
     original_list = &pa_context_get_sink_input_info_list;
     original_info = &pa_context_get_sink_input_info;
     original_monitor = &pa_stream_set_monitor_stream;
@@ -223,7 +231,11 @@ std::string audio_install(uintptr_t base, bool (*writable)(const void *)) {
         }
     }
     using PulseTable = void *(*)();
-    auto *table = static_cast<unsigned char *>(reinterpret_cast<PulseTable>(base + 0xa61c70)());
+    auto *table = static_cast<unsigned char *>(reinterpret_cast<PulseTable>(symbols.pulse_table)());
+    if (!table) {
+        hook_error = "Could not load Discord's audio symbol table.";
+        return hook_error;
+    }
     auto *volume_slot = reinterpret_cast<void **>(table + 0xb8);
     Dl_info volume_symbol{};
     if (!writable(volume_slot) || !dladdr(*volume_slot, &volume_symbol) || !volume_symbol.dli_sname

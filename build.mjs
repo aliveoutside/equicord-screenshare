@@ -46,6 +46,7 @@ if (process.platform === "linux" && process.arch === "x64") {
             resolve(source, "audio.cpp"),
             resolve(source, "pipewire-audio.cpp"),
             resolve(source, "discord-audio.cpp"),
+            resolve(source, "audio-symbols.cpp"),
             resolve(source, "audio-selection.cpp"),
             resolve(source, "capture-resolver.cpp"),
             ...portal.stdout.trim().split(/\s+/),
