@@ -161,11 +161,16 @@ launcher="$HOME/.local/bin/equicord-screenshare"
 if [[ -e "$launcher" ]] && ! cmp -s "$plugin/setup.sh" "$launcher"; then
     cp "$launcher" "$root/equicord-screenshare.previous"
 fi
-cp "$plugin/setup.sh" "$launcher"
-chmod +x "$launcher"
+temporary_launcher=$(mktemp "$HOME/.local/bin/.equicord-screenshare.XXXXXX")
+cp "$plugin/setup.sh" "$temporary_launcher"
+chmod +x "$temporary_launcher"
+mv -fT "$temporary_launcher" "$launcher"
 legacy="$HOME/.local/bin/wayland-screenshare"
 if [[ -f "$legacy" ]] && grep -q 'aliveoutside/equicord-screenshare.git' "$legacy"; then
-    cp "$plugin/setup.sh" "$legacy"
+    temporary_launcher=$(mktemp "$HOME/.local/bin/.wayland-screenshare.XXXXXX")
+    cp "$plugin/setup.sh" "$temporary_launcher"
+    chmod +x "$temporary_launcher"
+    mv -fT "$temporary_launcher" "$legacy"
 fi
 printf '\nInstalled. Fully quit Discord, including its tray icon, then reopen it.\n'
 if [[ :$PATH: == *":$HOME/.local/bin:"* ]]; then

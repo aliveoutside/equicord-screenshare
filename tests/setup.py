@@ -155,6 +155,25 @@ with tempfile.TemporaryDirectory(prefix="screenshare-checksum-test-") as directo
     assert not (Path(env["XDG_DATA_HOME"]) / "equicord-screenshare/tools/node").exists()
     assert not (root / "install-calls").exists()
 
+with tempfile.TemporaryDirectory(prefix="screenshare-self-update-test-") as directory:
+    root, home, discord, env = fixture(directory)
+    result = run(setup, ["--discord", str(discord)], env)
+    assert result.returncode == 0, result.stdout + result.stderr
+    managed = Path(env["XDG_DATA_HOME"]) / "equicord-screenshare"
+    plugin = managed / "Equicord/src/userplugins/waylandScreenshare"
+    for name in ("equicord-screenshare", "wayland-screenshare"):
+        launcher = home / ".local/bin" / name
+        launcher.write_bytes(setup.read_bytes())
+        old_inode = launcher.stat().st_ino
+        updated = setup.read_text().replace("set -euo pipefail", "set -euo pipefail\n" * 40, 1)
+        (plugin / "setup.sh").write_text(updated)
+        result = run(launcher, ["update"], env)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "Installed." in result.stdout
+        assert launcher.stat().st_ino != old_inode
+        assert launcher.read_text() == updated
+        assert subprocess.run(["bash", "-n", str(launcher)]).returncode == 0
+
 print(
-    "Setup checks passed: first install, private tools, update, remembered Discord path, spaces, dependency setup, dirty sources, install failure and checksum rejection. No network or system changes were made."
+    "Setup checks passed: install, update, atomic self-update, management commands, private tools, paths with spaces and failure handling. No network or system changes were made."
 )
