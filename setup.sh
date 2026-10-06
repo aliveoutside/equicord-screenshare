@@ -165,6 +165,7 @@ if [[ -f "$legacy" ]] && grep -q 'aliveoutside/equicord-screenshare.git' "$legac
     ln -sfnT "$plugin/setup.sh" "$legacy"
 fi
 printf '\nInstalled. Fully quit Discord, including its tray icon, then reopen it.\n'
+printf 'This installation replaces the Equicord build Discord loads. You no longer need to build or update your old copy separately.\n'
 if [[ :$PATH: == *":$HOME/.local/bin:"* ]]; then
     printf 'Next time, update with: equicord-screenshare update\n'
 else

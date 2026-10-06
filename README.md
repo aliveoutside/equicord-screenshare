@@ -12,6 +12,8 @@ curl -fsSL https://raw.githubusercontent.com/aliveoutside/equicord-screenshare/m
 
 Everything is downloaded and built for you. It can take a few minutes and may ask for your password to install build tools. Run it without `sudo`.
 
+**Already using Equicord?** This installer replaces the build Discord loads with Equicord plus this plugin. You no longer need to build or update your old copy separately. Use the update command below from now on.
+
 When it finishes, **quit Discord completely, including the tray icon, and reopen it**.
 
 The installer supports Arch/CachyOS, Debian/Ubuntu and Fedora on x64. Launch Discord at least once before installing. Flatpak and Snap installs aren't supported. This installs Equicord and replaces any existing Discord mod installation.
