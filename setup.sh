@@ -64,14 +64,13 @@ discord=$(realpath -m "$discord")
 trap 'printf "Setup stopped at line %s. Fix the error above, then run the same command again.\n" "$LINENO" >&2' ERR
 repo="$root/Equicord"
 plugin="$repo/src/userplugins/waylandScreenshare"
-export PATH="$root/tools/node/bin:$root/tools/bin:$PATH"
 case "$command" in
     uninstall | install-openasar | uninstall-openasar)
         [[ -f "$plugin/install.sh" ]] || {
             printf 'No managed installation was found. Run the setup command first.\n' >&2
             exit 1
         }
-        bash "$plugin/install.sh" "--$command" --discord "$discord"
+        PATH="$root/tools/node/bin:$root/tools/bin:$PATH" bash "$plugin/install.sh" "--$command" --discord "$discord"
         exit 0
         ;;
 esac
@@ -102,30 +101,48 @@ if "$missing"; then
             ;;
     esac
 fi
+find_node_headers() {
+    node -e '
+        const { existsSync } = require("node:fs");
+        const { dirname, resolve } = require("node:path");
+        if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1);
+        const headers = process.env.NODE_INCLUDE_DIR ?? resolve(dirname(process.execPath), "../include/node");
+        if (!existsSync(resolve(headers, "node_api.h"))) process.exit(1);
+        console.log(resolve(headers));
+    '
+}
 mkdir -p "$root/tools"
-if [[ ! -x "$root/tools/node/bin/node" ]]; then
-    printf 'Downloading a private Node.js build…\n'
-    temporary=$(mktemp -d "$root/tools/download.XXXXXX")
-    curl --fail --show-error --silent --location https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt -o "$temporary/SHASUMS256.txt"
-    archive=$(awk '$2 ~ /^node-v24\.[0-9]+\.[0-9]+-linux-x64\.tar\.xz$/ { print $2; exit }' "$temporary/SHASUMS256.txt")
-    [[ -n "$archive" ]] || {
-        printf 'Could not find the Node.js Linux download.\n' >&2
-        exit 1
-    }
-    curl --fail --show-error --location "https://nodejs.org/dist/latest-v24.x/$archive" -o "$temporary/$archive"
-    (
-        cd "$temporary"
-        sha256sum --check --ignore-missing SHASUMS256.txt
-    )
-    mkdir "$temporary/node"
-    tar -xJf "$temporary/$archive" --strip-components=1 -C "$temporary/node"
-    [[ $(realpath -m "$root/tools/node") == "$root/tools/node" ]] || {
-        printf 'Unexpected tool directory.\n' >&2
-        exit 1
-    }
-    mv "$temporary/node" "$root/tools/node"
+if command -v npm >/dev/null && headers=$(find_node_headers 2>/dev/null); then
+    printf 'Using installed Node.js %s.\n' "$(node --version)"
+else
+    export PATH="$root/tools/node/bin:$PATH"
+    unset NODE_INCLUDE_DIR
+    if [[ ! -x "$root/tools/node/bin/node" ]]; then
+        printf 'Downloading a private Node.js build…\n'
+        temporary=$(mktemp -d "$root/tools/download.XXXXXX")
+        curl --fail --show-error --silent --location https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt -o "$temporary/SHASUMS256.txt"
+        archive=$(awk '$2 ~ /^node-v24\.[0-9]+\.[0-9]+-linux-x64\.tar\.xz$/ { print $2; exit }' "$temporary/SHASUMS256.txt")
+        [[ -n "$archive" ]] || {
+            printf 'Could not find the Node.js Linux download.\n' >&2
+            exit 1
+        }
+        curl --fail --show-error --location "https://nodejs.org/dist/latest-v24.x/$archive" -o "$temporary/$archive"
+        (
+            cd "$temporary"
+            sha256sum --check --ignore-missing SHASUMS256.txt
+        )
+        mkdir "$temporary/node"
+        tar -xJf "$temporary/$archive" --strip-components=1 -C "$temporary/node"
+        [[ $(realpath -m "$root/tools/node") == "$root/tools/node" ]] || {
+            printf 'Unexpected tool directory.\n' >&2
+            exit 1
+        }
+        mv "$temporary/node" "$root/tools/node"
+    fi
+    headers=$(find_node_headers)
 fi
-node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
+export NODE_INCLUDE_DIR="$headers"
+export PATH="$root/tools/bin:$PATH"
 if [[ ! -d "$repo/.git" ]]; then
     [[ ! -e "$repo" ]] || {
         printf 'The installation directory exists without a Git checkout: %s\n' "$repo" >&2
