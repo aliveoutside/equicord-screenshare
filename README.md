@@ -20,6 +20,20 @@ When it finishes, **restart discord**.
 
 The installer supports Arch/CachyOS, Debian/Ubuntu and Fedora on x64. Flatpak and Snap installs aren't supported. This installs Equicord and replaces any existing Discord mod installation.
 
+## Manual install
+
+For your own Equicord fork, run from its root. Requires Node 22+ with development headers, pnpm, G++, pkg-config and GIO/PipeWire/PulseAudio development libraries.
+
+```bash
+git clone https://github.com/aliveoutside/equicord-screenshare.git src/userplugins/waylandScreenshare
+pnpm install --frozen-lockfile
+node src/userplugins/waylandScreenshare/build.mjs
+pnpm build
+pnpm inject
+```
+
+Restart Discord afterward. To update, pull the plugin repository and repeat the build steps.
+
 ## Update
 
 ```bash
