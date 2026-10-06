@@ -22,7 +22,30 @@ The installer supports Arch/CachyOS, Debian/Ubuntu and Fedora on x64. Flatpak an
 
 ## Manual install
 
-For your own Equicord fork, run from its root. Requires Node 22+ with development headers, pnpm, G++, pkg-config and GIO/PipeWire/PulseAudio development libraries.
+For your own Equicord fork, use Node 22+ with development headers and the pnpm version your fork requires. Install the native build dependencies:
+
+Arch/CachyOS:
+
+```bash
+sudo pacman -S --needed gcc make pkgconf glib2 pipewire libpulse
+```
+
+Debian/Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install build-essential pkg-config libglib2.0-dev libpipewire-0.3-dev libpulse-dev
+```
+
+Fedora:
+
+```bash
+sudo dnf install gcc-c++ make pkgconf-pkg-config glib2-devel pipewire-devel pulseaudio-libs-devel
+```
+
+Official Node downloads include development headers. For distro Node, install `libnode-dev` on Debian/Ubuntu or `nodejs-devel` on Fedora; Arch includes them with `nodejs`.
+
+Run from your fork's root:
 
 ```bash
 git clone https://github.com/aliveoutside/equicord-screenshare.git src/userplugins/waylandScreenshare
