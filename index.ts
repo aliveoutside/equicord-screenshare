@@ -5,7 +5,7 @@
  */
 
 import ErrorBoundary from "@components/ErrorBoundary";
-import { Devs, IS_LINUX } from "@utils/constants";
+import { IS_LINUX } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin, { PluginNative } from "@utils/types";
 import { Button, MediaEngineStore, Menu, React, UserStore } from "@webpack/common";
@@ -60,7 +60,7 @@ export default definePlugin({
     name: "WaylandScreenshare",
     description:
         "Changes the captured Wayland window and shares selected application audio through PipeWire.",
-    authors: [Devs.prism],
+    authors: [{ name: "aliveoutside", id: 0n }],
     tags: ["Voice", "Utility"],
     enabledByDefault: true,
     settingsAboutComponent: ErrorBoundary.wrap(
