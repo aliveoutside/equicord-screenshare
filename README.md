@@ -19,10 +19,29 @@ The installer supports Arch/CachyOS, Debian/Ubuntu and Fedora on x64. Launch Dis
 ## Update
 
 ```bash
-~/.local/bin/wayland-screenshare update
+~/.local/bin/equicord-screenshare update
 ```
 
 Restart Discord afterward.
+
+## Uninstall
+
+```bash
+~/.local/bin/equicord-screenshare uninstall
+```
+
+Removes Equicord from Discord. Downloaded files stay so you can reinstall later.
+
+## OpenAsar
+
+Optional, using the official Equicord installer:
+
+```bash
+~/.local/bin/equicord-screenshare install-openasar
+~/.local/bin/equicord-screenshare uninstall-openasar
+```
+
+OpenAsar is managed separately; uninstalling Equicord leaves it installed. Restart Discord after either action.
 
 ## Use
 

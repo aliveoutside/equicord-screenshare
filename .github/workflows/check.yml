@@ -18,5 +18,7 @@ jobs:
         run: bash -n setup.sh install.sh
       - name: Test setup and update without network access
         run: python3 tests/setup.py
+      - name: Test installer management commands
+        run: python3 tests/installer.py
       - name: Build native addon
         run: node build.mjs

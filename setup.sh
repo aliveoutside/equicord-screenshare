@@ -9,7 +9,7 @@ discord="${XDG_CONFIG_HOME:-$HOME/.config}/discord"
 command=install
 while (($#)); do
     case "$1" in
-        install | update)
+        install | update | uninstall | install-openasar | uninstall-openasar)
             command=$1
             shift
             ;;
@@ -23,10 +23,13 @@ while (($#)); do
             ;;
         -h | --help)
             printf '%s\n' \
-                'Usage: wayland-screenshare [install|update] [--discord PATH]' \
-                'Install build tools, download Equicord and build the screenshare plugin.' \
-                'Run wayland-screenshare update to install updates.' \
-                'Official Discord on Linux x64 is required. Fully restart it after installation.'
+                'Usage: equicord-screenshare [COMMAND] [--discord PATH]' \
+                '  install             Download, build and install Equicord with the plugin.' \
+                '  update              Update Equicord and the plugin.' \
+                '  uninstall           Remove Equicord from Discord; keep downloaded files.' \
+                '  install-openasar    Install OpenAsar using the official installer.' \
+                '  uninstall-openasar  Remove OpenAsar using the official installer.' \
+                'Official Discord on Linux x64 is required. Fully restart it after changes.'
             exit 0
             ;;
         *)
@@ -50,7 +53,7 @@ flock -n 9 || {
     printf 'Another screenshare installation is running.\n' >&2
     exit 1
 }
-if [[ $command == update && -f "$root/discord-path" && $discord == "${XDG_CONFIG_HOME:-$HOME/.config}/discord" ]]; then
+if [[ $command != install && -f "$root/discord-path" && $discord == "${XDG_CONFIG_HOME:-$HOME/.config}/discord" ]]; then
     IFS= read -r discord <"$root/discord-path"
 fi
 discord=$(realpath -m "$discord")
@@ -59,6 +62,19 @@ discord=$(realpath -m "$discord")
     exit 1
 }
 trap 'printf "Setup stopped at line %s. Fix the error above, then run the same command again.\n" "$LINENO" >&2' ERR
+repo="$root/Equicord"
+plugin="$repo/src/userplugins/waylandScreenshare"
+export PATH="$root/tools/node/bin:$root/tools/bin:$PATH"
+case "$command" in
+    uninstall | install-openasar | uninstall-openasar)
+        [[ -f "$plugin/install.sh" ]] || {
+            printf 'No managed installation was found. Run the setup command first.\n' >&2
+            exit 1
+        }
+        bash "$plugin/install.sh" "--$command" --discord "$discord"
+        exit 0
+        ;;
+esac
 missing=false
 for tool in git curl g++ pkg-config make xz; do
     command -v "$tool" >/dev/null || missing=true
@@ -87,7 +103,6 @@ if "$missing"; then
     esac
 fi
 mkdir -p "$root/tools"
-export PATH="$root/tools/node/bin:$root/tools/bin:$PATH"
 if [[ ! -x "$root/tools/node/bin/node" ]]; then
     printf 'Downloading a private Node.js build…\n'
     temporary=$(mktemp -d "$root/tools/download.XXXXXX")
@@ -111,8 +126,6 @@ if [[ ! -x "$root/tools/node/bin/node" ]]; then
     mv "$temporary/node" "$root/tools/node"
 fi
 node -e 'if (Number(process.versions.node.split(".")[0]) < 22) process.exit(1)'
-repo="$root/Equicord"
-plugin="$repo/src/userplugins/waylandScreenshare"
 if [[ ! -d "$repo/.git" ]]; then
     [[ ! -e "$repo" ]] || {
         printf 'The installation directory exists without a Git checkout: %s\n' "$repo" >&2
@@ -144,15 +157,19 @@ fi
 bash "$plugin/install.sh" --discord "$discord"
 printf '%s\n' "$discord" >"$root/discord-path"
 mkdir -p "$HOME/.local/bin"
-launcher="$HOME/.local/bin/wayland-screenshare"
+launcher="$HOME/.local/bin/equicord-screenshare"
 if [[ -e "$launcher" ]] && ! cmp -s "$plugin/setup.sh" "$launcher"; then
-    cp "$launcher" "$root/wayland-screenshare.previous"
+    cp "$launcher" "$root/equicord-screenshare.previous"
 fi
 cp "$plugin/setup.sh" "$launcher"
 chmod +x "$launcher"
+legacy="$HOME/.local/bin/wayland-screenshare"
+if [[ -f "$legacy" ]] && grep -q 'aliveoutside/equicord-screenshare.git' "$legacy"; then
+    cp "$plugin/setup.sh" "$legacy"
+fi
 printf '\nInstalled. Fully quit Discord, including its tray icon, then reopen it.\n'
 if [[ :$PATH: == *":$HOME/.local/bin:"* ]]; then
-    printf 'Next time, update with: wayland-screenshare update\n'
+    printf 'Next time, update with: equicord-screenshare update\n'
 else
-    printf 'Next time, update with: ~/.local/bin/wayland-screenshare update\n'
+    printf 'Next time, update with: ~/.local/bin/equicord-screenshare update\n'
 fi

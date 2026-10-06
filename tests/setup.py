@@ -102,12 +102,16 @@ def run(script, args, env):
 
 with tempfile.TemporaryDirectory(prefix="screenshare-setup-test-") as directory:
     root, home, discord, env = fixture(directory)
+    legacy = home / ".local/bin/wayland-screenshare"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(setup.read_bytes())
     result = run(setup, ["--discord", str(discord)], env)
     assert result.returncode == 0, result.stdout + result.stderr
     managed = Path(env["XDG_DATA_HOME"]) / "equicord-screenshare"
+    assert legacy.read_bytes() == setup.read_bytes()
     assert (managed / "tools/node/include/node/node_api.h").is_file()
     assert (managed / "tools/bin/pnpm").is_file()
-    launcher = home / ".local/bin/wayland-screenshare"
+    launcher = home / ".local/bin/equicord-screenshare"
     assert launcher.is_file() and os.access(launcher, os.X_OK)
     assert (managed / "discord-path").read_text().strip() == str(discord)
     assert (root / "install-calls").read_text().count("--discord " + str(discord)) == 1
@@ -122,6 +126,12 @@ with tempfile.TemporaryDirectory(prefix="screenshare-setup-test-") as directory:
     result = run(launcher, ["update"], env)
     assert result.returncode != 0 and "Local source changes" in result.stderr
     assert (root / "install-calls").read_text().count("--discord") == 2
+    for action in ("uninstall", "install-openasar", "uninstall-openasar"):
+        (root / "calls").write_text("")
+        result = run(launcher, [action], env)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (root / "calls").read_text() == ""
+        assert f"--{action} --discord {discord}" in (root / "install-calls").read_text()
     (root / "dirty").unlink()
     env["TEST_INSTALL_EXIT"] = "7"
     result = run(launcher, ["update"], env)
