@@ -77,6 +77,7 @@ pw_proxy *sink = nullptr;
 spa_hook core_listener{};
 spa_hook registry_listener{};
 spa_source *retry = nullptr;
+spa_source *repair = nullptr;
 std::unordered_map<uint32_t, std::unique_ptr<Client>> clients;
 std::unordered_map<uint32_t, std::unique_ptr<Node>> nodes;
 std::unordered_map<std::string, std::unique_ptr<Loopback>> loopbacks;
@@ -103,8 +104,14 @@ void clear_loopbacks() {
     loopbacks.clear();
 }
 
+void schedule_repair() {
+    timespec delay{1, 0};
+    pw_loop_update_timer(pw_thread_loop_get_loop(loop), repair, &delay, nullptr, false);
+}
+
 void module_destroyed(void *data) {
     static_cast<Loopback *>(data)->module = nullptr;
+    schedule_repair();
 }
 
 bool selected(const Node &node) {
@@ -140,8 +147,8 @@ std::vector<AudioNode> snapshot_nodes() {
 void reconcile() {
     if (selection_kind == "auto") {
         const auto video = nodes.find(capture_node);
-        capture_hint.clear();
         if (video != nodes.end() && video->second->video) {
+            capture_hint.clear();
             const std::string prefix = "kwin-screencast-";
             const auto &description = video->second->description;
             if (description.find(prefix) == 0) {
@@ -190,6 +197,7 @@ void reconcile() {
         value.destroy = module_destroyed;
         return value;
     }();
+    bool failed = false;
     for (const auto &[id, node] : nodes) {
         if (node->video || !selected(*node) || node->serial.empty()
             || loopbacks.count(node->serial)) {
@@ -199,23 +207,32 @@ void reconcile() {
         const std::string args =
             "{ audio.position = [ FL FR ] capture.props = { node.name = " + group
             + ".capture target.object = " + node->serial
-            + " node.passive = true node.dont-fallback = true node.dont-reconnect = true "
+            + " node.passive = true node.dont-fallback = true "
               "node.dont-move = true"
               " node.linger = true stream.dont-remix = false } playback.props = { node.name = "
             + group + ".playback target.object = " + sink_name
-            + " node.passive = true node.dont-fallback = true node.dont-reconnect = true "
+            + " node.passive = true node.dont-fallback = true "
               "node.dont-move = true"
               " node.linger = true } }";
         auto capture = std::make_unique<Loopback>();
         capture->module =
             pw_context_load_module(context, "libpipewire-module-loopback", args.c_str(), nullptr);
         if (!capture->module) {
-            backend_error = "Could not connect the selected playback stream.";
+            failed = true;
+            backend_error = "Could not connect the selected playback stream. Retrying.";
+            schedule_repair();
             continue;
         }
         pw_impl_module_add_listener(capture->module, &capture->listener, &events, capture.get());
         loopbacks.emplace(node->serial, std::move(capture));
     }
+    if (!failed) {
+        backend_error.clear();
+    }
+}
+
+void repair_loopbacks(void *, uint64_t) {
+    reconcile();
 }
 
 void identify(Node &node) {
@@ -377,6 +394,7 @@ void global_remove(void *, uint32_t id) {
 
 void disconnect_graph() {
     ready.store(false);
+    capture_node = PW_ID_ANY;
     clear_loopbacks();
     nodes.clear();
     clients.clear();
@@ -501,6 +519,10 @@ void stop_backend() {
         pw_loop_destroy_source(pw_thread_loop_get_loop(loop), retry);
         retry = nullptr;
     }
+    if (repair) {
+        pw_loop_destroy_source(pw_thread_loop_get_loop(loop), repair);
+        repair = nullptr;
+    }
     if (context) {
         pw_context_destroy(context);
         context = nullptr;
@@ -509,6 +531,10 @@ void stop_backend() {
     loop = nullptr;
     selection.clear();
     selection_kind.clear();
+    capture_hint.clear();
+    match_reason.clear();
+    auto_confident = false;
+    desktop_capture = false;
 }
 
 bool start_backend() {
@@ -528,7 +554,8 @@ bool start_backend() {
         return false;
     }
     retry = pw_loop_add_timer(pw_thread_loop_get_loop(loop), reconnect, nullptr);
-    if (!retry || pw_thread_loop_start(loop) < 0) {
+    repair = pw_loop_add_timer(pw_thread_loop_get_loop(loop), repair_loopbacks, nullptr);
+    if (!retry || !repair || pw_thread_loop_start(loop) < 0) {
         backend_error = "Could not start the PipeWire audio loop.";
         stop_backend();
         return false;

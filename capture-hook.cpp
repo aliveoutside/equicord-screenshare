@@ -67,6 +67,7 @@ struct Target {
     Capture *owner;
     void *native = nullptr;
     PipewireConfig config;
+    bool received_frame = false;
     std::unique_ptr<PortalSession> session;
 };
 
@@ -109,6 +110,9 @@ static void route_frame(const void *frame, uint32_t kind, const char *error, voi
     bool forward;
     {
         std::lock_guard<std::mutex> state(capture.state);
+        if (frame && !error) {
+            target.received_frame = true;
+        }
         if (!capture.stopped.load() && capture.pending == &target) {
             if (frame && !error) {
                 capture.candidate_ready = true;
@@ -459,6 +463,14 @@ static napi_value status_value(napi_env env, const char *error = "") {
     set_number(env, object, "switched", switched.load());
     std::lock_guard<std::mutex> lock(handles_mutex);
     set_number(env, object, "active", handles.size());
+    uint64_t ready = 0;
+    for (const auto &[handle, capture] : handles) {
+        std::lock_guard<std::mutex> state(capture->state);
+        if (!capture->stopped.load() && capture->active && capture->active->received_frame) {
+            ++ready;
+        }
+    }
+    set_number(env, object, "ready", ready);
     return object;
 }
 

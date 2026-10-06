@@ -26,17 +26,35 @@ function audioPicker() {
 
 function checkAudioSelection() {
     clearTimeout(pickerTimeout);
-    pickerTimeout = setTimeout(() => {
+    const deadline = Date.now() + 15_000;
+    let readySince = 0;
+    function check() {
         pickerTimeout = undefined;
-        if (!hook || hook.status().active === 0) {
+        if (!hook) {
             return;
         }
+        const capture = hook.status();
         const audio = hook.audioStatus();
-        if (audio.kind === "auto" && (!audio.ready || audio.error || !audio.matched)) {
-            const reason = audio.error || audio.reason || "Choose an audio source below.";
-            openAudioPicker(hook, `Audio couldn't be selected automatically. ${reason}`);
+        if ((audio.kind !== "auto" && capture.active > 0)
+            || (audio.ready && audio.matched && !audio.error)) {
+            return;
         }
-    }, 1500);
+        const now = Date.now();
+        if (capture.ready > 0 && audio.ready) {
+            readySince ||= now;
+        } else {
+            readySince = 0;
+        }
+        if ((readySince && now - readySince >= 3000) || now >= deadline) {
+            if (capture.active > 0) {
+                const reason = audio.error || audio.reason || "Choose an audio source below.";
+                openAudioPicker(hook, `Audio couldn't be selected automatically. ${reason}`);
+            }
+            return;
+        }
+        pickerTimeout = setTimeout(check, 250);
+    }
+    pickerTimeout = setTimeout(check, 250);
 }
 
 export default definePlugin({

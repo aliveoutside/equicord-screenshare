@@ -13,6 +13,7 @@ export interface HookStatus {
     destroyed: number;
     failed: number;
     active: number;
+    ready: number;
     switched: number;
 }
 
