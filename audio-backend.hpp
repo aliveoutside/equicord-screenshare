@@ -27,6 +27,7 @@ struct AudioState {
     std::string reason;
     uint32_t linked;
     bool matched;
+    bool waiting;
 };
 
 bool pipewire_start();

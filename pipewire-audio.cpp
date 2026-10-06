@@ -93,6 +93,7 @@ std::atomic<bool> ready{false};
 int sync_sequence = 0;
 bool synchronized = false;
 bool auto_confident = false;
+bool waiting_for_audio = false;
 bool desktop_capture = false;
 
 std::string property(const spa_dict *props, const char *key) {
@@ -162,6 +163,7 @@ void reconcile() {
             }
         }
         const auto match = match_audio_application(capture_hint, snapshot_nodes());
+        waiting_for_audio = match.waiting;
         if (selection.empty()) {
             selection = match.application;
         }
@@ -657,7 +659,8 @@ AudioState pipewire_state() {
                      capture_hint,
                      match_reason,
                      0,
-                     selection_kind == "auto" && (desktop_capture || auto_confident)};
+                     selection_kind == "auto" && (desktop_capture || auto_confident),
+                     selection_kind == "auto" && waiting_for_audio};
     for (const auto &[serial, capture] : loopbacks) {
         if (capture->module) {
             ++state.linked;

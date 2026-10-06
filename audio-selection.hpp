@@ -9,6 +9,7 @@
 struct AudioMatch {
     std::string application;
     std::string reason;
+    bool waiting = false;
 };
 
 AudioMatch match_audio_application(const std::string &hint, const std::vector<AudioNode> &nodes);

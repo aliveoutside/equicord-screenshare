@@ -82,7 +82,8 @@ AudioMatch match_audio_application(const std::string &hint, const std::vector<Au
         }
     }
     if (candidates.empty()) {
-        return {"", "Waiting for matching application audio. You can also select it manually."};
+        return {
+            "", "Waiting for matching application audio. You can also select it manually.", true};
     }
     if (candidates.size() != 1) {
         return {"", "Several applications match this window. Select audio manually."};
