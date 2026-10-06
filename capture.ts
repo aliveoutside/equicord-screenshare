@@ -39,17 +39,29 @@ export interface AudioNode {
 export interface CaptureHook {
     install(): HookStatus;
     status(): HookStatus;
-    changeWindow(): Promise<HookStatus & { success: boolean; cancelled: boolean; }>;
+    changeWindow(): Promise<HookStatus & { success: boolean; cancelled: boolean }>;
     startAudio(): AudioStatus;
     stopAudio(): AudioStatus;
     audioStatus(): AudioStatus;
     listAudio(): AudioNode[];
-    identifyWindowAudio(): Promise<{ application: string; error: string; }>;
+    identifyWindowAudio(): Promise<{ application: string; error: string }>;
     selectAudio(kind: string, target: string): AudioStatus;
 }
 
 export function isCaptureHook(value: unknown): value is CaptureHook {
-    return typeof value === "object" && value !== null
-        && ["install", "status", "changeWindow", "startAudio", "stopAudio", "audioStatus", "listAudio", "selectAudio", "identifyWindowAudio"]
-            .every(key => key in value && typeof Reflect.get(value, key) === "function");
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        [
+            "install",
+            "status",
+            "changeWindow",
+            "startAudio",
+            "stopAudio",
+            "audioStatus",
+            "listAudio",
+            "selectAudio",
+            "identifyWindowAudio"
+        ].every(key => key in value && typeof Reflect.get(value, key) === "function")
+    );
 }

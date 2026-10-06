@@ -22,14 +22,23 @@
 #include "portal.hpp"
 #include "audio.hpp"
 
-struct PipewireConfig { int32_t fd; uint32_t node; };
+struct PipewireConfig {
+    int32_t fd;
+    uint32_t node;
+};
+
 using FrameHandler = void (*)(const void *, uint32_t, const char *, void *);
+
 struct CaptureOptions {
-    uint32_t source, fps, width, height;
+    uint32_t source;
+    uint32_t fps;
+    uint32_t width;
+    uint32_t height;
     FrameHandler callback;
     void *context;
     PipewireConfig *config;
 };
+
 static_assert(sizeof(CaptureOptions) == 40);
 using NewCapture = int (*)(const CaptureOptions *, void **);
 using UpdateCapture = int (*)(void *, const CaptureOptions *);
@@ -37,37 +46,49 @@ using Renditions = void (*)(void *, const size_t *, const size_t *, size_t);
 using DestroyCapture = int (*)(void *);
 using DestroyFrame = void (*)(const void *);
 
-static const char *names[] = {
-    "cc_linux_capture_new", "cc_linux_capture_update",
-    "cc_linux_capture_set_requested_renditions", "cc_linux_capture_destroy"
-};
+static const char *names[] = {"cc_linux_capture_new",
+                              "cc_linux_capture_update",
+                              "cc_linux_capture_set_requested_renditions",
+                              "cc_linux_capture_destroy"};
 static void **slots[4] = {};
 static void *originals[4] = {};
 static DestroyFrame destroy_frame = nullptr;
 static void (*close_original_session)() = nullptr;
-static std::atomic<uint64_t> created{0}, updated{0}, resized{0}, destroyed{0}, failed{0}, switched{0};
+static std::atomic<uint64_t> created{0};
+static std::atomic<uint64_t> updated{0};
+static std::atomic<uint64_t> resized{0};
+static std::atomic<uint64_t> destroyed{0};
+static std::atomic<uint64_t> failed{0};
+static std::atomic<uint64_t> switched{0};
 static std::atomic<bool> choosing{false};
 struct Capture;
+
 struct Target {
     Capture *owner;
     void *native = nullptr;
     PipewireConfig config;
     std::unique_ptr<PortalSession> session;
 };
+
 struct Capture {
     std::atomic<bool> stopped{false};
-    std::mutex operation, state, forwarding;
+    std::mutex operation;
+    std::mutex state;
+    std::mutex forwarding;
     std::condition_variable ready;
     CaptureOptions options;
     FrameHandler callback;
     void *context;
-    Target *active = nullptr, *pending = nullptr;
+    Target *active = nullptr;
+    Target *pending = nullptr;
     bool candidate_ready = false;
     bool original_session = true;
     std::string candidate_error;
-    std::vector<size_t> widths, heights;
+    std::vector<size_t> widths;
+    std::vector<size_t> heights;
     std::vector<std::unique_ptr<Target>> targets;
 };
+
 static std::mutex handles_mutex;
 static std::unordered_map<void *, std::shared_ptr<Capture>> handles;
 static bool installed = false;
@@ -89,14 +110,21 @@ static void route_frame(const void *frame, uint32_t kind, const char *error, voi
     {
         std::lock_guard<std::mutex> state(capture.state);
         if (!capture.stopped.load() && capture.pending == &target) {
-            if (frame && !error) capture.candidate_ready = true;
-            if (error) capture.candidate_error = "The new capture could not receive frames.";
+            if (frame && !error) {
+                capture.candidate_ready = true;
+            }
+            if (error) {
+                capture.candidate_error = "The new capture could not receive frames.";
+            }
             capture.ready.notify_all();
         }
         forward = !capture.stopped.load() && capture.active == &target;
     }
-    if (forward) capture.callback(frame, kind, error, capture.context);
-    else if (frame) destroy_frame(frame);
+    if (forward) {
+        capture.callback(frame, kind, error, capture.context);
+    } else if (frame) {
+        destroy_frame(frame);
+    }
 }
 
 static CaptureOptions target_options(Capture &capture, Target &target) {
@@ -108,7 +136,9 @@ static CaptureOptions target_options(Capture &capture, Target &target) {
 }
 
 static int on_new(const CaptureOptions *options, void **output) {
-    if (!options->config) return reinterpret_cast<NewCapture>(originals[0])(options, output);
+    if (!options->config) {
+        return reinterpret_cast<NewCapture>(originals[0])(options, output);
+    }
     auto capture = std::make_shared<Capture>();
     capture->options = *options;
     capture->options.config = nullptr;
@@ -137,9 +167,13 @@ static int on_new(const CaptureOptions *options, void **output) {
 static int on_update(void *handle, const CaptureOptions *options) {
     ++updated;
     auto capture = lookup(handle);
-    if (!capture) return reinterpret_cast<UpdateCapture>(originals[1])(handle, options);
+    if (!capture) {
+        return reinterpret_cast<UpdateCapture>(originals[1])(handle, options);
+    }
     std::lock_guard<std::mutex> operation(capture->operation);
-    if (capture->stopped.load()) return 0;
+    if (capture->stopped.load()) {
+        return 0;
+    }
     capture->options.source = options->source;
     capture->options.fps = options->fps;
     capture->options.width = options->width;
@@ -148,7 +182,9 @@ static int on_update(void *handle, const CaptureOptions *options) {
     for (auto &target : capture->targets) {
         auto routed = target_options(*capture, *target);
         const int update = reinterpret_cast<UpdateCapture>(originals[1])(target->native, &routed);
-        if (target.get() == capture->active) result = update;
+        if (target.get() == capture->active) {
+            result = update;
+        }
     }
     return result;
 }
@@ -161,21 +197,28 @@ static void on_renditions(void *handle, const size_t *widths, const size_t *heig
         return;
     }
     std::lock_guard<std::mutex> operation(capture->operation);
-    if (capture->stopped.load()) return;
+    if (capture->stopped.load()) {
+        return;
+    }
     capture->widths.clear();
     capture->heights.clear();
     if (count && widths && heights) {
         capture->widths.assign(widths, widths + count);
         capture->heights.assign(heights, heights + count);
     }
-    for (auto &target : capture->targets)
+    for (auto &target : capture->targets) {
         reinterpret_cast<Renditions>(originals[2])(target->native, widths, heights, count);
+    }
 }
 
 static void retire(Capture &capture, Target *target) {
     for (auto it = capture.targets.begin(); it != capture.targets.end(); ++it) {
-        if (it->get() != target) continue;
-        if (target->native) reinterpret_cast<DestroyCapture>(originals[3])(target->native);
+        if (it->get() != target) {
+            continue;
+        }
+        if (target->native) {
+            reinterpret_cast<DestroyCapture>(originals[3])(target->native);
+        }
         capture.targets.erase(it);
         return;
     }
@@ -183,7 +226,9 @@ static void retire(Capture &capture, Target *target) {
 
 static int on_destroy(void *handle) {
     auto capture = lookup(handle);
-    if (!capture) return reinterpret_cast<DestroyCapture>(originals[3])(handle);
+    if (!capture) {
+        return reinterpret_cast<DestroyCapture>(originals[3])(handle);
+    }
     capture->stopped.store(true);
     capture->ready.notify_all();
     {
@@ -196,7 +241,9 @@ static int on_destroy(void *handle) {
             capture->active = nullptr;
             capture->pending = nullptr;
         }
-        while (!capture->targets.empty()) retire(*capture, capture->targets.back().get());
+        while (!capture->targets.empty()) {
+            retire(*capture, capture->targets.back().get());
+        }
     }
     audio_capture_end();
     std::lock_guard<std::mutex> lock(handles_mutex);
@@ -205,12 +252,18 @@ static int on_destroy(void *handle) {
     return 0;
 }
 
-static bool replace_capture(const std::shared_ptr<Capture> &capture, PipewireConfig config,
-                            std::unique_ptr<PortalSession> session, bool commit, std::string &error) {
+static bool replace_capture(const std::shared_ptr<Capture> &capture,
+                            PipewireConfig config,
+                            std::unique_ptr<PortalSession> session,
+                            bool commit,
+                            std::string &error) {
     Target *candidate;
     {
         std::lock_guard<std::mutex> operation(capture->operation);
-        if (capture->stopped.load()) { close(config.fd); return false; }
+        if (capture->stopped.load()) {
+            close(config.fd);
+            return false;
+        }
         auto target = std::make_unique<Target>();
         target->owner = capture.get();
         target->config = config;
@@ -234,22 +287,29 @@ static bool replace_capture(const std::shared_ptr<Capture> &capture, PipewireCon
             error = "Could not start capturing the new window.";
             return false;
         }
-        reinterpret_cast<Renditions>(originals[2])(candidate->native, capture->widths.data(),
-            capture->heights.data(), capture->widths.size());
+        reinterpret_cast<Renditions>(originals[2])(candidate->native,
+                                                   capture->widths.data(),
+                                                   capture->heights.data(),
+                                                   capture->widths.size());
     }
     bool ready;
     {
         std::unique_lock<std::mutex> state(capture->state);
         ready = capture->ready.wait_for(state, std::chrono::seconds(15), [&] {
-            return capture->candidate_ready || !capture->candidate_error.empty() || capture->stopped.load();
+            return capture->candidate_ready || !capture->candidate_error.empty()
+                   || capture->stopped.load();
         });
-        if (!capture->candidate_error.empty()) error = capture->candidate_error;
+        if (!capture->candidate_error.empty()) {
+            error = capture->candidate_error;
+        }
         ready = ready && capture->candidate_ready && error.empty();
     }
     std::unique_lock<std::mutex> forwarding(capture->forwarding, std::defer_lock);
     std::unique_lock<std::mutex> operation(capture->operation, std::defer_lock);
     std::lock(forwarding, operation);
-    if (capture->stopped.load()) return false;
+    if (capture->stopped.load()) {
+        return false;
+    }
     Target *old = nullptr;
     {
         std::lock_guard<std::mutex> state(capture->state);
@@ -262,7 +322,9 @@ static bool replace_capture(const std::shared_ptr<Capture> &capture, PipewireCon
     forwarding.unlock();
     if (!old) {
         retire(*capture, candidate);
-        if (!ready && error.empty()) error = "The new window did not provide frames. The previous capture is still active.";
+        if (!ready && error.empty()) {
+            error = "The new window did not provide frames. The previous capture is still active.";
+        }
         return false;
     }
     const bool close_global = capture->original_session && candidate->session;
@@ -278,26 +340,36 @@ static bool replace_capture(const std::shared_ptr<Capture> &capture, PipewireCon
 
 extern "C" int equicord_capture_replace(void *handle, int fd, uint32_t node, bool commit) {
     auto capture = lookup(handle);
-    if (!capture) { close(fd); return 0; }
+    if (!capture) {
+        close(fd);
+        return 0;
+    }
     std::string error;
     return replace_capture(capture, {fd, node}, nullptr, commit, error) ? 1 : 0;
 }
 
-static void *replacements[] = {
-    reinterpret_cast<void *>(on_new), reinterpret_cast<void *>(on_update),
-    reinterpret_cast<void *>(on_renditions), reinterpret_cast<void *>(on_destroy)
-};
+static void *replacements[] = {reinterpret_cast<void *>(on_new),
+                               reinterpret_cast<void *>(on_update),
+                               reinterpret_cast<void *>(on_renditions),
+                               reinterpret_cast<void *>(on_destroy)};
 
 static int locate(dl_phdr_info *info, size_t, void *) {
     const char *basename = std::strrchr(info->dlpi_name, '/');
-    if (std::strcmp(basename ? basename + 1 : info->dlpi_name, "discord_voice.node") != 0) return 0;
+    if (std::strcmp(basename ? basename + 1 : info->dlpi_name, "discord_voice.node") != 0) {
+        return 0;
+    }
     module_path = info->dlpi_name;
     module_base = info->dlpi_addr;
     const ElfW(Dyn) *dynamic = nullptr;
-    for (unsigned i = 0; i < info->dlpi_phnum; ++i)
-        if (info->dlpi_phdr[i].p_type == PT_DYNAMIC)
-            dynamic = reinterpret_cast<const ElfW(Dyn) *>(info->dlpi_addr + info->dlpi_phdr[i].p_vaddr);
-    if (!dynamic) return 1;
+    for (unsigned i = 0; i < info->dlpi_phnum; ++i) {
+        if (info->dlpi_phdr[i].p_type == PT_DYNAMIC) {
+            dynamic =
+                reinterpret_cast<const ElfW(Dyn) *>(info->dlpi_addr + info->dlpi_phdr[i].p_vaddr);
+        }
+    }
+    if (!dynamic) {
+        return 1;
+    }
     const ElfW(Sym) *symbols = nullptr;
     const char *strings = nullptr;
     const ElfW(Rela) *relocations = nullptr;
@@ -305,21 +377,37 @@ static int locate(dl_phdr_info *info, size_t, void *) {
     bool rela = false;
     for (auto entry = dynamic; entry->d_tag != DT_NULL; ++entry) {
         switch (entry->d_tag) {
-            case DT_SYMTAB: symbols = reinterpret_cast<const ElfW(Sym) *>(entry->d_un.d_ptr); break;
-            case DT_STRTAB: strings = reinterpret_cast<const char *>(entry->d_un.d_ptr); break;
-            case DT_JMPREL: relocations = reinterpret_cast<const ElfW(Rela) *>(entry->d_un.d_ptr); break;
-            case DT_PLTRELSZ: bytes = entry->d_un.d_val; break;
-            case DT_PLTREL: rela = entry->d_un.d_val == DT_RELA; break;
+        case DT_SYMTAB:
+            symbols = reinterpret_cast<const ElfW(Sym) *>(entry->d_un.d_ptr);
+            break;
+        case DT_STRTAB:
+            strings = reinterpret_cast<const char *>(entry->d_un.d_ptr);
+            break;
+        case DT_JMPREL:
+            relocations = reinterpret_cast<const ElfW(Rela) *>(entry->d_un.d_ptr);
+            break;
+        case DT_PLTRELSZ:
+            bytes = entry->d_un.d_val;
+            break;
+        case DT_PLTREL:
+            rela = entry->d_un.d_val == DT_RELA;
+            break;
         }
     }
-    if (!symbols || !strings || !relocations || !rela) return 1;
+    if (!symbols || !strings || !relocations || !rela) {
+        return 1;
+    }
     for (size_t i = 0; i < bytes / sizeof(ElfW(Rela)); ++i) {
         const auto &entry = relocations[i];
-        if (ELF64_R_TYPE(entry.r_info) != R_X86_64_JUMP_SLOT) continue;
+        if (ELF64_R_TYPE(entry.r_info) != R_X86_64_JUMP_SLOT) {
+            continue;
+        }
         const char *name = strings + symbols[ELF64_R_SYM(entry.r_info)].st_name;
         audio_locate(info, entry, name);
         for (unsigned j = 0; j < 4; ++j) {
-            if (std::strcmp(name, names[j]) != 0) continue;
+            if (std::strcmp(name, names[j]) != 0) {
+                continue;
+            }
             ++matches[j];
             slots[j] = reinterpret_cast<void **>(info->dlpi_addr + entry.r_offset);
         }
@@ -333,13 +421,18 @@ static bool writable(const void *address) {
     const auto target = reinterpret_cast<uintptr_t>(address);
     while (std::getline(maps, line)) {
         std::istringstream fields(line);
-        std::string range, permissions;
+        std::string range;
+        std::string permissions;
         fields >> range >> permissions;
         const auto dash = range.find('-');
-        if (dash == std::string::npos || permissions.size() < 3) continue;
+        if (dash == std::string::npos || permissions.size() < 3) {
+            continue;
+        }
         const auto begin = std::stoull(range.substr(0, dash), nullptr, 16);
         const auto end = std::stoull(range.substr(dash + 1), nullptr, 16);
-        if (begin <= target && target < end) return permissions[1] == 'w' && permissions[2] != 'x';
+        if (begin <= target && target < end) {
+            return permissions[1] == 'w' && permissions[2] != 'x';
+        }
     }
     return false;
 }
@@ -351,7 +444,8 @@ static void set_number(napi_env env, napi_value object, const char *key, uint64_
 }
 
 static napi_value status_value(napi_env env, const char *error = "") {
-    napi_value object, value;
+    napi_value object;
+    napi_value value;
     napi_create_object(env, &object);
     napi_get_boolean(env, installed, &value);
     napi_set_named_property(env, object, "installed", value);
@@ -369,15 +463,25 @@ static napi_value status_value(napi_env env, const char *error = "") {
 }
 
 extern "C" const char *equicord_capture_install() {
-    if (installed) return "";
+    if (installed) {
+        return "";
+    }
     module_path.clear();
-    for (unsigned i = 0; i < 4; ++i) { slots[i] = nullptr; matches[i] = 0; }
+    for (unsigned i = 0; i < 4; ++i) {
+        slots[i] = nullptr;
+        matches[i] = 0;
+    }
     dl_iterate_phdr(locate, nullptr);
-    if (module_path.empty()) return "The voice module is not loaded in this process.";
+    if (module_path.empty()) {
+        return "The voice module is not loaded in this process.";
+    }
     void *library = dlopen(module_path.c_str(), RTLD_LAZY | RTLD_NOLOAD);
-    if (!library) return "Could not access the loaded voice module.";
+    if (!library) {
+        return "Could not access the loaded voice module.";
+    }
     destroy_frame = reinterpret_cast<DestroyFrame>(dlsym(library, "cc_video_frame_destroy"));
-    close_original_session = reinterpret_cast<void (*)()>(dlsym(library, "cc_linux_picker_close_session"));
+    close_original_session =
+        reinterpret_cast<void (*)()>(dlsym(library, "cc_linux_picker_close_session"));
     if (!destroy_frame || !close_original_session) {
         dlclose(library);
         return "The voice module is missing capture cleanup functions.";
@@ -400,7 +504,9 @@ extern "C" const char *equicord_capture_install() {
         }
     }
     audio_install(module_base, writable);
-    for (unsigned i = 0; i < 4; ++i) __atomic_store_n(slots[i], replacements[i], __ATOMIC_RELEASE);
+    for (unsigned i = 0; i < 4; ++i) {
+        __atomic_store_n(slots[i], replacements[i], __ATOMIC_RELEASE);
+    }
     installed = true;
     dlclose(library);
     return "";
@@ -420,18 +526,23 @@ static napi_value install(napi_env env, napi_callback_info) {
     return status_value(env, equicord_capture_install());
 }
 
-static napi_value status(napi_env env, napi_callback_info) { return status_value(env); }
+static napi_value status(napi_env env, napi_callback_info) {
+    return status_value(env);
+}
 
 struct Change {
     napi_async_work work;
     napi_deferred deferred;
     std::shared_ptr<Capture> capture;
-    bool success = false, cancelled = false;
+    bool success = false;
+    bool cancelled = false;
     std::string error;
 };
 
-static napi_value change_value(napi_env env, bool success, bool cancelled, const std::string &error) {
-    napi_value result = status_value(env, error.c_str()), value;
+static napi_value
+change_value(napi_env env, bool success, bool cancelled, const std::string &error) {
+    napi_value result = status_value(env, error.c_str());
+    napi_value value;
     napi_get_boolean(env, success, &value);
     napi_set_named_property(env, result, "success", value);
     napi_get_boolean(env, cancelled, &value);
@@ -439,23 +550,32 @@ static napi_value change_value(napi_env env, bool success, bool cancelled, const
     return result;
 }
 
-static bool choose_capture(const std::shared_ptr<Capture> &capture, std::string &error, bool &cancelled) {
+static bool
+choose_capture(const std::shared_ptr<Capture> &capture, std::string &error, bool &cancelled) {
     auto session = choose_window(capture->stopped, error, cancelled);
-    if (!session) return false;
+    if (!session) {
+        return false;
+    }
     PipewireConfig config{session->fd, session->node};
     session->fd = -1;
     const bool success = replace_capture(capture, config, std::move(session), true, error);
-    if (capture->stopped.load()) cancelled = true;
+    if (capture->stopped.load()) {
+        cancelled = true;
+    }
     return success;
 }
 
 extern "C" int equicord_capture_choose(void *handle) {
     auto capture = lookup(handle);
-    if (!capture) return 0;
+    if (!capture) {
+        return 0;
+    }
     std::string error;
     bool cancelled = false;
     const bool success = choose_capture(capture, error, cancelled);
-    if (!error.empty()) g_printerr("WaylandScreenshare: %s\n", error.c_str());
+    if (!error.empty()) {
+        g_printerr("WaylandScreenshare: %s\n", error.c_str());
+    }
     return success ? 1 : cancelled ? 2 : 0;
 }
 
@@ -467,36 +587,54 @@ static void execute_change(napi_env, void *data) {
 static void complete_change(napi_env env, napi_status status, void *data) {
     auto change = std::unique_ptr<Change>(static_cast<Change *>(data));
     choosing.store(false);
-    if (status != napi_ok) change->error = "Window switching was interrupted.";
-    napi_resolve_deferred(env, change->deferred, change_value(env, change->success, change->cancelled, change->error));
+    if (status != napi_ok) {
+        change->error = "Window switching was interrupted.";
+    }
+    napi_resolve_deferred(env,
+                          change->deferred,
+                          change_value(env, change->success, change->cancelled, change->error));
     napi_delete_async_work(env, change->work);
 }
 
 static napi_value change_window(napi_env env, napi_callback_info) {
     auto change = std::make_unique<Change>();
-    napi_value promise, name;
+    napi_value promise;
+    napi_value name;
     napi_create_promise(env, &change->deferred, &promise);
     {
         std::lock_guard<std::mutex> lock(handles_mutex);
-        if (!installed) change->error = "The capture hook is not installed.";
-        else if (handles.size() != 1) change->error = "Could not identify a single active screenshare.";
-        else change->capture = handles.begin()->second;
+        if (!installed) {
+            change->error = "The capture hook is not installed.";
+        } else if (handles.size() != 1) {
+            change->error = "Could not identify a single active screenshare.";
+        } else {
+            change->capture = handles.begin()->second;
+        }
     }
     if (!change->error.empty() || choosing.exchange(true)) {
-        if (change->error.empty()) change->error = "The window picker is already open.";
-        napi_resolve_deferred(env, change->deferred, change_value(env, false, false, change->error));
+        if (change->error.empty()) {
+            change->error = "The window picker is already open.";
+        }
+        napi_resolve_deferred(
+            env, change->deferred, change_value(env, false, false, change->error));
         return promise;
     }
     napi_create_string_utf8(env, "WaylandScreenshare.ChangeWindow", NAPI_AUTO_LENGTH, &name);
-    if (napi_create_async_work(env, nullptr, name, execute_change, complete_change, change.get(), &change->work) != napi_ok) {
+    if (napi_create_async_work(
+            env, nullptr, name, execute_change, complete_change, change.get(), &change->work)
+        != napi_ok) {
         choosing.store(false);
-        napi_resolve_deferred(env, change->deferred, change_value(env, false, false, "Could not open the window picker."));
+        napi_resolve_deferred(env,
+                              change->deferred,
+                              change_value(env, false, false, "Could not open the window picker."));
         return promise;
     }
     if (napi_queue_async_work(env, change->work) != napi_ok) {
         choosing.store(false);
         napi_delete_async_work(env, change->work);
-        napi_resolve_deferred(env, change->deferred, change_value(env, false, false, "Could not open the window picker."));
+        napi_resolve_deferred(env,
+                              change->deferred,
+                              change_value(env, false, false, "Could not open the window picker."));
         return promise;
     }
     change.release();
@@ -507,8 +645,7 @@ NAPI_MODULE_INIT() {
     napi_property_descriptor methods[] = {
         {"install", nullptr, install, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"status", nullptr, status, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"changeWindow", nullptr, change_window, nullptr, nullptr, nullptr, napi_default, nullptr}
-    };
+        {"changeWindow", nullptr, change_window, nullptr, nullptr, nullptr, napi_default, nullptr}};
     napi_define_properties(env, exports, 3, methods);
     audio_register(env, exports);
     return exports;

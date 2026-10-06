@@ -7,6 +7,8 @@
 #include "audio-backend.hpp"
 
 struct AudioMatch {
-    std::string application, reason;
+    std::string application;
+    std::string reason;
 };
+
 AudioMatch match_audio_application(const std::string &hint, const std::vector<AudioNode> &nodes);

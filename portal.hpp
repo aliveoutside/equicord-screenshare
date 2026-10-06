@@ -18,4 +18,5 @@ struct PortalSession {
     ~PortalSession();
 };
 
-std::unique_ptr<PortalSession> choose_window(std::atomic<bool> &stopped, std::string &error, bool &cancelled);
+std::unique_ptr<PortalSession>
+choose_window(std::atomic<bool> &stopped, std::string &error, bool &cancelled);

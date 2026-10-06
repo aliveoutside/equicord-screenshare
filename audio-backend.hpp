@@ -9,11 +9,22 @@
 #include <vector>
 
 struct AudioNode {
-    std::string serial, application, name, description, pid, binary, app_id;
+    std::string serial;
+    std::string application;
+    std::string name;
+    std::string description;
+    std::string pid;
+    std::string binary;
+    std::string app_id;
 };
+
 struct AudioState {
     bool ready;
-    std::string error, selection, kind, hint, reason;
+    std::string error;
+    std::string selection;
+    std::string kind;
+    std::string hint;
+    std::string reason;
     uint32_t linked;
 };
 

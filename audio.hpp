@@ -8,7 +8,7 @@
 #include <link.h>
 #include <string>
 
-void audio_locate(dl_phdr_info *info, const ElfW(Rela) &entry, const char *name);
+void audio_locate(dl_phdr_info *info, const ElfW(Rela) & entry, const char *name);
 std::string audio_install(uintptr_t base, bool (*writable)(const void *));
 void audio_register(napi_env env, napi_value exports);
 void audio_clear_selection();

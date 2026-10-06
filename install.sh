@@ -11,12 +11,18 @@ build_only=false
 while (($#)); do
     case "$1" in
         --discord)
-            [[ $# -ge 2 && -n "$2" ]] || { printf 'Missing path after --discord.\n' >&2; exit 2; }
+            [[ $# -ge 2 && -n "$2" ]] || {
+                printf 'Missing path after --discord.\n' >&2
+                exit 2
+            }
             discord=$2
             shift 2
             ;;
-        --build-only) build_only=true; shift ;;
-        -h|--help)
+        --build-only)
+            build_only=true
+            shift
+            ;;
+        -h | --help)
             printf '%s\n' \
                 'Usage: bash install.sh [--discord PATH] [--build-only]' \
                 'Build WaylandScreenshare and Equicord, then install into Discord.' \
@@ -26,24 +32,36 @@ while (($#)); do
                 'Fully restart Discord after installation.'
             exit 0
             ;;
-        *) printf 'Unknown argument: %s\n' "$1" >&2; exit 2 ;;
+        *)
+            printf 'Unknown argument: %s\n' "$1" >&2
+            exit 2
+            ;;
     esac
 done
 
-[[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || { printf 'Linux x64 is required.\n' >&2; exit 1; }
+[[ $(uname -s) == Linux && $(uname -m) == x86_64 ]] || {
+    printf 'Linux x64 is required.\n' >&2
+    exit 1
+}
 [[ -f "$repo/package.json" && -f "$repo/scripts/runInstaller.mjs" ]] || {
     printf 'Clone this plugin into an Equicord checkout at src/userplugins/waylandScreenshare.\n' >&2
     exit 1
 }
 for tool in node pnpm g++ pkg-config; do
-    command -v "$tool" >/dev/null || { printf 'Required tool is missing: %s\n' "$tool" >&2; exit 1; }
+    command -v "$tool" >/dev/null || {
+        printf 'Required tool is missing: %s\n' "$tool" >&2
+        exit 1
+    }
 done
 pkg-config --exists gio-2.0 gio-unix-2.0 libpipewire-0.3 libpulse || {
     printf 'Install the GIO, PipeWire and PulseAudio development libraries.\n' >&2
     exit 1
 }
 headers=$(node -p 'process.env.NODE_INCLUDE_DIR ?? require("node:path").resolve(require("node:path").dirname(process.execPath), "../include/node")')
-[[ -f "$headers/node_api.h" ]] || { printf 'Node development headers are missing. Run setup.sh first.\n' >&2; exit 1; }
+[[ -f "$headers/node_api.h" ]] || {
+    printf 'Node development headers are missing. Run setup.sh first.\n' >&2
+    exit 1
+}
 discord=$(realpath -m "$discord")
 if ! "$build_only" && [[ ! -e "$discord/Discord" ]]; then
     printf 'Discord was not found at %s. Use --discord to select its configuration directory.\n' "$discord" >&2

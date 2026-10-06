@@ -15,8 +15,9 @@ export function prepare(_: IpcMainInvokeEvent) {
         return { success: false, error: "The capture hook supports Linux x64 only." };
     try {
         const modules = join(app.getPath("userData"), `app-${app.getVersion()}`, "modules");
-        const voices = readdirSync(modules, { withFileTypes: true })
-            .filter(entry => entry.isDirectory() && /^discord_voice-\d+$/.test(entry.name));
+        const voices = readdirSync(modules, { withFileTypes: true }).filter(
+            entry => entry.isDirectory() && /^discord_voice-\d+$/.test(entry.name)
+        );
         if (voices.length !== 1)
             return { success: false, error: "Could not identify Discord's voice module." };
         const destination = join(modules, voices[0].name, "discord_equicord_capture");
@@ -26,7 +27,9 @@ export function prepare(_: IpcMainInvokeEvent) {
             ["index.js", Buffer.from(captureLoader)]
         ] as const) {
             const target = join(destination, name);
-            if (existsSync(target) && readFileSync(target).equals(data)) continue;
+            if (existsSync(target) && readFileSync(target).equals(data)) {
+                continue;
+            }
             const temporary = `${target}.installing`;
             writeFileSync(temporary, data);
             renameSync(temporary, target);
