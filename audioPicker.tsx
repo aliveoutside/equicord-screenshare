@@ -22,7 +22,7 @@ async function identifyWindowAudio(hook: CaptureHook) {
     const capture = hook.status();
     const result = await hook.identifyWindowAudio();
     if (result.error) {
-        openAudioPicker(hook, result.error);
+        openAudioPicker(hook, "Couldn't identify the window. Choose an audio source.");
         return;
     }
     const current = hook.status();
@@ -31,12 +31,12 @@ async function identifyWindowAudio(hook: CaptureHook) {
         current.switched !== capture.switched ||
         current.destroyed !== capture.destroyed
     ) {
-        openAudioPicker(hook, "The share changed while identifying the window. Identify it again.");
+        openAudioPicker(hook, "Share changed. Identify the window again.");
         return;
     }
     const status = hook.selectAudio("application", result.application);
     if (status.error) {
-        openAudioPicker(hook, status.error);
+        openAudioPicker(hook, "Couldn't select audio. Choose another source.");
     }
 }
 
@@ -55,11 +55,11 @@ const AudioPicker = ErrorBoundary.wrap(
             { label: "Desktop audio", value: "desktop:" },
             { label: "No audio", value: "none:" },
             ...Array.from(applications.values(), node => ({
-                label: `${node.name} (${node.pid || "Application"})`,
+                label: node.name,
                 value: `application:${node.application}`
             })),
             ...nodes.map(node => ({
-                label: `${node.name}: ${node.description || "Playback stream"} (${node.serial})`,
+                label: `${node.name}: ${node.description || "Playback stream"}`,
                 value: `stream:${node.serial}`
             }))
         ];
@@ -73,34 +73,26 @@ const AudioPicker = ErrorBoundary.wrap(
             options.push({
                 label:
                     status.kind === "stream"
-                        ? "Selected stream is no longer available"
-                        : "Selected application is waiting for playback",
+                        ? "Stream unavailable"
+                        : "Waiting for playback",
                 value: current
             });
-        const selected = nodes.find(
-            node => node.application === status.selection || node.serial === status.selection
-        );
-        let message = status.error;
-        if (!message) {
-            if (status.kind === "desktop") {
-                message = `Desktop audio: ${status.linked} playback streams connected.`;
-            } else if (status.kind === "auto" && (!status.selection || status.linked === 0)) {
-                message = status.reason;
-            } else if (!status.selection) {
-                message = "Screenshare audio is muted.";
-            } else if (status.linked === 0 && status.kind === "stream") {
-                message =
-                    "This stream disappeared. Select an application to follow recreated playback streams.";
-            } else if (status.linked === 0) {
-                message =
-                    "Waiting for this application's audio to return. Other applications remain excluded.";
+        let message = "";
+        if (status.error) {
+            message = "Audio unavailable. Try another source.";
+        } else if (openingReason) {
+            message = openingReason;
+        } else if (status.kind !== "none" && status.linked === 0) {
+            if (status.kind === "stream") {
+                message = "Stream ended. Choose another source.";
+            } else if (status.kind === "auto" && !status.waiting && !status.matched) {
+                message = "Choose an audio source or identify the window.";
             } else {
-                message = `${selected?.name || "Selected application"}: ${status.linked} playback streams connected.`;
+                message = "Waiting for audio.";
             }
         }
         return (
             <Flex flexDirection="column" gap={16}>
-                {openingReason ? <BaseText size="sm">{openingReason}</BaseText> : null}
                 <Flex flexDirection="column" gap={8}>
                     <BaseText size="sm" weight="semibold">
                         Audio source
@@ -116,17 +108,18 @@ const AudioPicker = ErrorBoundary.wrap(
                         serialize={value => value}
                         placeholder="Select audio"
                     />
-                    <BaseText
-                        size="sm"
-                        color={status.error ? "text-danger" : "text-muted"}
-                        role={status.error ? "alert" : "status"}
-                    >
-                        {message}
-                    </BaseText>
+                    {message ? (
+                        <BaseText
+                            size="sm"
+                            color={status.error ? "text-danger" : "text-muted"}
+                            role={status.error ? "alert" : "status"}
+                        >
+                            {message}
+                        </BaseText>
+                    ) : null}
                 </Flex>
                 <BaseText size="sm" color="text-muted">
-                    Enable <strong>Sound</strong> when starting your share. You'll still hear audio
-                    locally.
+                    Enable <strong>Sound</strong> when starting your share.
                 </BaseText>
                 <Flex flexDirection="column" gap={8}>
                     <Flex gap={8} flexWrap="wrap">
@@ -136,8 +129,7 @@ const AudioPicker = ErrorBoundary.wrap(
                         </Button>
                     </Flex>
                     <BaseText size="sm" color="text-muted">
-                        On KDE, click Identify window audio, then click the shared window. Press
-                        Escape to cancel.
+                        Click Identify, then the shared window.
                     </BaseText>
                 </Flex>
             </Flex>

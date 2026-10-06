@@ -47,8 +47,7 @@ function checkAudioSelection() {
         }
         if ((readySince && now - readySince >= 3000) || now >= deadline) {
             if (capture.active > 0 && (!audio.ready || audio.error || !audio.waiting)) {
-                const reason = audio.error || audio.reason || "Choose an audio source below.";
-                openAudioPicker(hook, `Audio couldn't be selected automatically. ${reason}`);
+                openAudioPicker(hook);
             }
             return;
         }
