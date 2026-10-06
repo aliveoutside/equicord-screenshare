@@ -18,6 +18,7 @@ export interface HookStatus {
 
 export interface AudioStatus {
     ready: boolean;
+    matched: boolean;
     error: string;
     selection: string;
     kind: string;

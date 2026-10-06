@@ -623,8 +623,14 @@ AudioState pipewire_state() {
     if (loop) {
         pw_thread_loop_lock(loop);
     }
-    AudioState state{
-        ready.load(), backend_error, selection, selection_kind, capture_hint, match_reason, 0};
+    AudioState state{ready.load(),
+                     backend_error,
+                     selection,
+                     selection_kind,
+                     capture_hint,
+                     match_reason,
+                     0,
+                     selection_kind == "auto" && (desktop_capture || auto_confident)};
     for (const auto &[serial, capture] : loopbacks) {
         if (capture->module) {
             ++state.linked;

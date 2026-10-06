@@ -15,11 +15,27 @@ import { CaptureHook, isCaptureHook } from "./capture";
 
 const logger = new Logger("WaylandScreenshare");
 let hook: CaptureHook | undefined;
+let pickerTimeout: ReturnType<typeof setTimeout> | undefined;
 
 function audioPicker() {
+    clearTimeout(pickerTimeout);
     if (hook) {
         openAudioPicker(hook);
     }
+}
+
+function checkAudioSelection() {
+    clearTimeout(pickerTimeout);
+    pickerTimeout = setTimeout(() => {
+        pickerTimeout = undefined;
+        if (!hook || hook.status().active === 0) {
+            return;
+        }
+        const audio = hook.audioStatus();
+        if (audio.kind === "auto" && (!audio.ready || audio.error || !audio.matched)) {
+            audioPicker();
+        }
+    }, 1500);
 }
 
 export default definePlugin({
@@ -60,12 +76,13 @@ export default definePlugin({
                 return;
             }
             hook.selectAudio("auto", "");
-            audioPicker();
+            checkAudioSelection();
         },
         STREAM_DELETE({ streamKey }: { streamKey: string }) {
             if (!hook || !streamKey.endsWith(`:${UserStore.getCurrentUser().id}`)) {
                 return;
             }
+            clearTimeout(pickerTimeout);
             hook.selectAudio("none", "");
         }
     },
@@ -123,6 +140,7 @@ export default definePlugin({
         }
     },
     stop() {
+        clearTimeout(pickerTimeout);
         hook?.stopAudio();
         hook = undefined;
     },
@@ -146,7 +164,7 @@ export default definePlugin({
             logger.info("Window switch result:", result);
             if (result.success) {
                 showToast("The shared window has changed.");
-                audioPicker();
+                checkAudioSelection();
             } else if (!result.cancelled) {
                 showToast(result.error);
             }

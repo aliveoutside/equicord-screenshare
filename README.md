@@ -45,7 +45,7 @@ OpenAsar is managed separately; uninstalling Equicord leaves it installed. Resta
 
 ## Use
 
-Start a screenshare with **Sound** enabled. The audio picker opens automatically; choose an application, desktop audio, or no audio. If automatic matching misses your app, select it manually or use **Identify window audio** on KDE.
+Start a screenshare with **Sound** enabled. Audio is selected automatically when your app or monitor is recognized. Otherwise, the picker opens so you can select an application, desktop audio, or use **Identify window audio** on KDE.
 
 Use **Change Windows** in Discord's stream menu to switch the shared window or monitor. You can reopen the audio picker from plugin settings or Toolbox.
 

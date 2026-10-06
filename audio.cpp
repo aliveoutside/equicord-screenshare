@@ -34,6 +34,8 @@ napi_value state(napi_env env, napi_callback_info) {
     set_string(env, result, "reason", snapshot.reason);
     napi_get_boolean(env, snapshot.ready, &value);
     napi_set_named_property(env, result, "ready", value);
+    napi_get_boolean(env, snapshot.matched, &value);
+    napi_set_named_property(env, result, "matched", value);
     napi_create_uint32(env, snapshot.linked, &value);
     napi_set_named_property(env, result, "linked", value);
     napi_create_double(env, discord_audio_recordings(), &value);

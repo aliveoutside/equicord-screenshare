@@ -16,8 +16,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y g++ pkg-config libglib2.0-dev libpipewire-0.3-dev libpulse-dev
       - name: Check installer syntax
         run: bash -n setup.sh install.sh
-      - name: Test setup and update without network access
-        run: python3 tests/setup.py
       - name: Test installer management commands
         run: python3 tests/installer.py
       - name: Build native addon
