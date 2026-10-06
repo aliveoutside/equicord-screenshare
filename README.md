@@ -2,6 +2,10 @@
 
 Share application audio and switch windows without restarting your Discord stream. For official Discord on Linux Wayland, tested on KDE with PipeWire.
 
+![Switch the shared window or monitor from Discord's stream menu](.github/1.png)
+
+![Choose application audio in the screenshare audio picker](.github/2.png)
+
 ## Install
 
 Open a terminal and paste:
