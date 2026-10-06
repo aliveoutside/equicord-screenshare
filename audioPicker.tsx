@@ -8,21 +8,21 @@ import { BaseText } from "@components/BaseText";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
 import { useForceUpdater, useTimer } from "@utils/react";
-import { Button, Modal, openModal, React, Select, showToast } from "@webpack/common";
+import { Button, Modal, openModal, React, Select } from "@webpack/common";
 
 import { AudioNode, CaptureHook } from "./capture";
 
 interface AudioPickerProps {
     hook: CaptureHook;
+    openingReason?: string;
     onIdentify(): void;
 }
 
 async function identifyWindowAudio(hook: CaptureHook) {
     const capture = hook.status();
-    showToast("Click the shared window to identify its audio. Press Escape to cancel.");
     const result = await hook.identifyWindowAudio();
     if (result.error) {
-        showToast(result.error);
+        openAudioPicker(hook, result.error);
         return;
     }
     const current = hook.status();
@@ -31,18 +31,17 @@ async function identifyWindowAudio(hook: CaptureHook) {
         current.switched !== capture.switched ||
         current.destroyed !== capture.destroyed
     ) {
-        showToast("The share changed while identifying the window. Identify it again.");
+        openAudioPicker(hook, "The share changed while identifying the window. Identify it again.");
         return;
     }
     const status = hook.selectAudio("application", result.application);
-    showToast(
-        status.error ||
-            (status.linked ? "Window audio selected." : "Window identified. Waiting for its audio.")
-    );
+    if (status.error) {
+        openAudioPicker(hook, status.error);
+    }
 }
 
 const AudioPicker = ErrorBoundary.wrap(
-    function AudioPicker({ hook, onIdentify }: AudioPickerProps) {
+    function AudioPicker({ hook, openingReason, onIdentify }: AudioPickerProps) {
         useTimer({ interval: 1000 });
         const refresh = useForceUpdater();
         const nodes = hook.listAudio();
@@ -101,6 +100,7 @@ const AudioPicker = ErrorBoundary.wrap(
         }
         return (
             <Flex flexDirection="column" gap={16}>
+                {openingReason ? <BaseText size="sm">{openingReason}</BaseText> : null}
                 <Flex flexDirection="column" gap={8}>
                     <BaseText size="sm" weight="semibold">
                         Audio source
@@ -110,14 +110,8 @@ const AudioPicker = ErrorBoundary.wrap(
                         isSelected={value => value === current}
                         select={value => {
                             const split = value.indexOf(":");
-                            const next = hook.selectAudio(
-                                value.slice(0, split),
-                                value.slice(split + 1)
-                            );
+                            hook.selectAudio(value.slice(0, split), value.slice(split + 1));
                             refresh();
-                            if (next.error) {
-                                showToast(next.error);
-                            }
                         }}
                         serialize={value => value}
                         placeholder="Select audio"
@@ -142,7 +136,8 @@ const AudioPicker = ErrorBoundary.wrap(
                         </Button>
                     </Flex>
                     <BaseText size="sm" color="text-muted">
-                        On KDE, click Identify window audio, then click the shared window.
+                        On KDE, click Identify window audio, then click the shared window. Press
+                        Escape to cancel.
                     </BaseText>
                 </Flex>
             </Flex>
@@ -151,11 +146,12 @@ const AudioPicker = ErrorBoundary.wrap(
     { noop: true }
 );
 
-export function openAudioPicker(hook: CaptureHook) {
+export function openAudioPicker(hook: CaptureHook, openingReason?: string) {
     openModal(props => (
         <Modal {...props} size="md" title="Screenshare audio">
             <AudioPicker
                 hook={hook}
+                openingReason={openingReason}
                 onIdentify={() => {
                     props.onClose();
                     void identifyWindowAudio(hook);

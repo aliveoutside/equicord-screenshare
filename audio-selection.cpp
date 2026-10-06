@@ -6,6 +6,8 @@
 #include "audio-selection.hpp"
 #include <algorithm>
 #include <cctype>
+#include <gio/gdesktopappinfo.h>
+#include <memory>
 #include <set>
 
 namespace {
@@ -49,6 +51,13 @@ AudioMatch match_audio_application(const std::string &hint, const std::vector<Au
     if (normalized.find(',') != std::string::npos) {
         return {"", "Sharing a screen region. Select which application's audio to include."};
     }
+    const std::string desktop_id =
+        hint.size() >= 8 && hint.compare(hint.size() - 8, 8, ".desktop") == 0 ? hint
+                                                                              : hint + ".desktop";
+    std::unique_ptr<GDesktopAppInfo, decltype(&g_object_unref)> desktop(
+        g_desktop_app_info_new(desktop_id.c_str()), g_object_unref);
+    const std::string desktop_name =
+        desktop ? normalize(g_app_info_get_name(G_APP_INFO(desktop.get()))) : "";
     int best = 0;
     std::set<std::string> candidates;
     for (const auto &node : nodes) {
@@ -60,7 +69,8 @@ AudioMatch match_audio_application(const std::string &hint, const std::vector<Au
             score = 3;
         } else if (matches(normalized, node.binary)) {
             score = 2;
-        } else if (matches(normalized, node.name)) {
+        } else if (matches(normalized, node.name)
+                   || (!desktop_name.empty() && desktop_name == normalize(node.name))) {
             score = 1;
         }
         if (score > best) {

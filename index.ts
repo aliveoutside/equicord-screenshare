@@ -8,7 +8,7 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import { Devs, IS_LINUX } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin, { PluginNative } from "@utils/types";
-import { Button, MediaEngineStore, Menu, React, showToast, UserStore } from "@webpack/common";
+import { Button, MediaEngineStore, Menu, React, UserStore } from "@webpack/common";
 
 import { openAudioPicker } from "./audioPicker";
 import { CaptureHook, isCaptureHook } from "./capture";
@@ -33,7 +33,8 @@ function checkAudioSelection() {
         }
         const audio = hook.audioStatus();
         if (audio.kind === "auto" && (!audio.ready || audio.error || !audio.matched)) {
-            audioPicker();
+            const reason = audio.error || audio.reason || "Choose an audio source below.";
+            openAudioPicker(hook, `Audio couldn't be selected automatically. ${reason}`);
         }
     }, 1500);
 }
@@ -147,30 +148,28 @@ export default definePlugin({
     async changeWindow() {
         const source = MediaEngineStore.getGoLiveSource();
         if (!source?.desktopSource?.id.startsWith("prepicked:")) {
-            showToast("This stream does not use the system window picker.");
+            logger.warn("This stream does not use the system window picker.");
             return;
         }
         if (!hook) {
-            showToast("The native capture module is not loaded. Fully restart Discord.");
+            logger.warn("The native capture module is not loaded. Fully restart Discord.");
             return;
         }
         const status = hook.status();
         if (!status.installed) {
-            showToast(status.error);
+            logger.warn(status.error);
             return;
         }
         try {
             const result = await hook.changeWindow();
             logger.info("Window switch result:", result);
             if (result.success) {
-                showToast("The shared window has changed.");
                 checkAudioSelection();
             } else if (!result.cancelled) {
-                showToast(result.error);
+                logger.warn(result.error);
             }
         } catch (error) {
             logger.error("Native window switching failed.", error);
-            showToast("Could not change the shared window.");
         }
     }
 });
