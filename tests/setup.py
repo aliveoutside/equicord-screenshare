@@ -108,11 +108,14 @@ with tempfile.TemporaryDirectory(prefix="screenshare-setup-test-") as directory:
     result = run(setup, ["--discord", str(discord)], env)
     assert result.returncode == 0, result.stdout + result.stderr
     managed = Path(env["XDG_DATA_HOME"]) / "equicord-screenshare"
+    assert legacy.is_symlink()
+    assert legacy.resolve() == managed / "Equicord/src/userplugins/waylandScreenshare/setup.sh"
     assert legacy.read_bytes() == setup.read_bytes()
     assert (managed / "tools/node/include/node/node_api.h").is_file()
     assert (managed / "tools/bin/pnpm").is_file()
     launcher = home / ".local/bin/equicord-screenshare"
-    assert launcher.is_file() and os.access(launcher, os.X_OK)
+    assert launcher.is_symlink() and os.access(launcher, os.X_OK)
+    assert launcher.resolve() == legacy.resolve()
     assert (managed / "discord-path").read_text().strip() == str(discord)
     assert (root / "install-calls").read_text().count("--discord " + str(discord)) == 1
     (root / "calls").write_text("")
@@ -155,25 +158,18 @@ with tempfile.TemporaryDirectory(prefix="screenshare-checksum-test-") as directo
     assert not (Path(env["XDG_DATA_HOME"]) / "equicord-screenshare/tools/node").exists()
     assert not (root / "install-calls").exists()
 
-with tempfile.TemporaryDirectory(prefix="screenshare-self-update-test-") as directory:
+with tempfile.TemporaryDirectory(prefix="screenshare-symlink-test-") as directory:
     root, home, discord, env = fixture(directory)
     result = run(setup, ["--discord", str(discord)], env)
     assert result.returncode == 0, result.stdout + result.stderr
-    managed = Path(env["XDG_DATA_HOME"]) / "equicord-screenshare"
-    plugin = managed / "Equicord/src/userplugins/waylandScreenshare"
-    for name in ("equicord-screenshare", "wayland-screenshare"):
-        launcher = home / ".local/bin" / name
-        launcher.write_bytes(setup.read_bytes())
-        old_inode = launcher.stat().st_ino
-        updated = setup.read_text().replace("set -euo pipefail", "set -euo pipefail\n" * 40, 1)
-        (plugin / "setup.sh").write_text(updated)
-        result = run(launcher, ["update"], env)
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert "Installed." in result.stdout
-        assert launcher.stat().st_ino != old_inode
-        assert launcher.read_text() == updated
-        assert subprocess.run(["bash", "-n", str(launcher)]).returncode == 0
+    launcher = home / ".local/bin/equicord-screenshare"
+    target = launcher.resolve()
+    target.write_text(setup.read_text() + "\n")
+    assert launcher.read_bytes() == target.read_bytes()
+    result = run(launcher, ["update"], env)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert launcher.is_symlink() and launcher.resolve() == target
 
 print(
-    "Setup checks passed: install, update, atomic self-update, management commands, private tools, paths with spaces and failure handling. No network or system changes were made."
+    "Setup checks passed: install, update, symlink shortcuts, management commands, private tools, paths with spaces and failure handling. No network or system changes were made."
 )
