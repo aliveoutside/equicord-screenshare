@@ -1,0 +1,22 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y g++ pkg-config libglib2.0-dev libpipewire-0.3-dev libpulse-dev
+      - name: Check installer syntax
+        run: bash -n setup.sh install.sh
+      - name: Test setup and update without network access
+        run: python3 tests/setup.py
+      - name: Build native addon
+        run: node build.mjs
