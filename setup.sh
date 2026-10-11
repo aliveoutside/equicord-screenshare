@@ -46,6 +46,14 @@ done
     printf 'Run this as your normal user, without sudo. It asks for sudo only when installing system packages.\n' >&2
     exit 1
 }
+if [[ $command == install || $command == update ]] && command -v pacman >/dev/null 2>&1; then
+    for package in equicord equicord-hook; do
+        if pacman -Qq "$package" >/dev/null 2>&1; then
+            printf 'Warning: installed package %s may load or re-inject Equicord separately.\n' "$package" >&2
+            printf 'Disable other Equicord injections to avoid loading it twice in Discord.\n' >&2
+        fi
+    done
+fi
 mkdir -p "$root"
 root=$(realpath "$root")
 exec 9>"$root/setup.lock"
