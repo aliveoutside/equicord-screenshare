@@ -49,8 +49,9 @@ done
 if [[ $command == install || $command == update ]] && command -v pacman >/dev/null 2>&1; then
     for package in equicord equicord-hook; do
         if pacman -Qq "$package" >/dev/null 2>&1; then
-            printf 'Warning: installed package %s may load or re-inject Equicord separately.\n' "$package" >&2
-            printf 'Disable other Equicord injections to avoid loading it twice in Discord.\n' >&2
+            printf 'Error: installed package %s may load or re-inject Equicord separately.\n' "$package" >&2
+            printf 'Remove %s before installing or updating equicord-screenshare.\n' "$package" >&2
+            exit 1
         fi
     done
 fi
