@@ -36,6 +36,7 @@ while (($#)); do
                 '  --build-only    Build without installing into Discord.' \
                 '  --uninstall     Remove Equicord from Discord.' \
                 '  --install-openasar / --uninstall-openasar  Manage OpenAsar.' \
+                'The AUR equicord package is not supported; it manages its own Discord build.' \
                 'Fully restart Discord after changes.'
             exit 0
             ;;
@@ -58,6 +59,22 @@ if "$build_only" && [[ $action != install ]]; then
     printf '%s\n' '--build-only cannot be combined with a management action.' >&2
     exit 2
 fi
+discord=$(realpath -m "$discord")
+if ! "$build_only"; then
+    [[ -e "$discord/Discord" ]] || {
+        printf 'Discord was not found at %s. Use --discord to select its configuration directory.\n' "$discord" >&2
+        exit 1
+    }
+    # Standalone packages (including AUR) ship a sibling archive. Their launcher
+    # restores its packaged app.asar, so injecting another build cannot persist.
+    host=$(dirname "$(realpath "$discord/Discord")")
+    if [[ -e "$host/resources/equicord.asar" ]]; then
+        printf '%s\n' \
+            'This standalone Equicord installation manages its own equicord.asar.' \
+            'Add this userplugin to its package build, or use --discord to select a separate official Discord installation.' >&2
+        exit 1
+    fi
+fi
 tools=(node)
 if [[ $action == install ]]; then
     tools+=(pnpm g++ pkg-config)
@@ -78,11 +95,6 @@ if [[ $action == install ]]; then
         printf 'Node development headers are missing. Run setup.sh first.\n' >&2
         exit 1
     }
-fi
-discord=$(realpath -m "$discord")
-if ! "$build_only" && [[ ! -e "$discord/Discord" ]]; then
-    printf 'Discord was not found at %s. Use --discord to select its configuration directory.\n' "$discord" >&2
-    exit 1
 fi
 trap 'printf "Installation stopped at line %s. See the error above.\n" "$LINENO" >&2' ERR
 cd "$repo"

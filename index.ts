@@ -8,7 +8,8 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import { IS_LINUX } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin, { PluginNative } from "@utils/types";
-import { Button, MediaEngineStore, Menu, React, UserStore } from "@webpack/common";
+import { Button } from "@components/Button";
+import { MediaEngineStore, Menu, React, UserStore } from "@webpack/common";
 
 import { openAudioPicker } from "./audioPicker";
 import { CaptureHook, isCaptureHook } from "./capture";

@@ -5,10 +5,11 @@
  */
 
 import { BaseText } from "@components/BaseText";
+import { Button } from "@components/Button";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
 import { useForceUpdater, useTimer } from "@utils/react";
-import { Button, Modal, openModal, React, Select } from "@webpack/common";
+import { Modal, openModal, React, Select } from "@webpack/common";
 
 import { AudioNode, CaptureHook } from "./capture";
 
@@ -124,7 +125,7 @@ const AudioPicker = ErrorBoundary.wrap(
                 <Flex flexDirection="column" gap={8}>
                     <Flex gap={8} flexWrap="wrap">
                         <Button onClick={onIdentify}>Identify window audio</Button>
-                        <Button color={Button.Colors.PRIMARY} onClick={refresh}>
+                        <Button variant="secondary" onClick={refresh}>
                             Refresh
                         </Button>
                     </Flex>

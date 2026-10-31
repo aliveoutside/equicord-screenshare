@@ -14,11 +14,21 @@ Open a terminal and paste:
 curl -fsSL https://raw.githubusercontent.com/aliveoutside/equicord-screenshare/main/setup.sh | bash
 ```
 
-**Already using Equicord?** This installer replaces the build Discord loads with Equicord plus this plugin. You no longer need to build or update your old copy separately. Use the update command below from now on.
+**Using the AUR `equicord` package?** Its launcher restores the packaged `app.asar` and `equicord.asar`, overwriting an injected screenshare build. This installer rejects that conflict. To keep the AUR installation, add the plugin to its Equicord source checkout and compile the native module before the package's `pnpm buildStandalone` step. Otherwise, use a separate official Discord installation and select its configuration directory with `--discord`.
+
+**Already using Equicord injected into official Discord?** This installer replaces the build Discord loads with Equicord plus this plugin. You no longer need to build or update your old copy separately. Use the update command below from now on.
 
 When it finishes, **restart discord**.
 
 The installer supports Arch/CachyOS, Debian/Ubuntu and Fedora on x64. Flatpak and Snap installs aren't supported. This installs Equicord and replaces any existing Discord mod installation.
+
+For a custom configuration directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aliveoutside/equicord-screenshare/main/setup.sh | bash -s -- --discord /path/to/config
+```
+
+Later commands reuse that directory unless you pass `--discord` again.
 
 ## Manual install
 

@@ -6,6 +6,7 @@ set -euo pipefail
 
 root="${XDG_DATA_HOME:-$HOME/.local/share}/equicord-screenshare"
 discord="${XDG_CONFIG_HOME:-$HOME/.config}/discord"
+discord_explicit=false
 command=install
 while (($#)); do
     case "$1" in
@@ -19,6 +20,7 @@ while (($#)); do
                 exit 2
             }
             discord=$2
+            discord_explicit=true
             shift 2
             ;;
         -h | --help)
@@ -29,6 +31,7 @@ while (($#)); do
                 '  uninstall           Remove Equicord from Discord; keep downloaded files.' \
                 '  install-openasar    Install OpenAsar using the official installer.' \
                 '  uninstall-openasar  Remove OpenAsar using the official installer.' \
+                'The AUR equicord package is not supported; it manages its own Discord build.' \
                 'Official Discord on Linux x64 is required. Fully restart it after changes.'
             exit 0
             ;;
@@ -55,19 +58,27 @@ if [[ $command == install || $command == update ]] && command -v pacman >/dev/nu
         fi
     done
 fi
+if ! "$discord_explicit" && [[ -f "$root/discord-path" ]]; then
+    IFS= read -r discord <"$root/discord-path"
+fi
+discord=$(realpath -m "$discord")
+# Catch the standard AUR installation before downloading another Equicord build.
+if [[ $discord == "$(realpath -m "${XDG_CONFIG_HOME:-$HOME/.config}/discord")" ]] &&
+    command -v pacman >/dev/null && pacman -Qq equicord >/dev/null 2>&1; then
+    printf '%s\n' \
+        'The AUR equicord package manages this Discord installation.' \
+        'Rebuild that package with this userplugin, or use --discord to select a separate official Discord installation.' >&2
+    exit 1
+fi
+[[ -e "$discord/Discord" ]] || {
+    printf 'Discord was not found at %s. Launch official Discord once, or use --discord /path/to/config.\n' "$discord" >&2
+    exit 1
+}
 mkdir -p "$root"
 root=$(realpath "$root")
 exec 9>"$root/setup.lock"
 flock -n 9 || {
     printf 'Another screenshare installation is running.\n' >&2
-    exit 1
-}
-if [[ $command != install && -f "$root/discord-path" && $discord == "${XDG_CONFIG_HOME:-$HOME/.config}/discord" ]]; then
-    IFS= read -r discord <"$root/discord-path"
-fi
-discord=$(realpath -m "$discord")
-[[ -e "$discord/Discord" ]] || {
-    printf 'Discord was not found at %s. Launch official Discord once, or use --discord /path/to/config.\n' "$discord" >&2
     exit 1
 }
 trap 'printf "Setup stopped at line %s. Fix the error above, then run the same command again.\n" "$LINENO" >&2' ERR
