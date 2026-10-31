@@ -250,6 +250,11 @@ static int on_destroy(void *handle) {
         }
     }
     audio_capture_end();
+    if (capture->original_session) {
+        // Discord keeps its portal session after the stream ends, which breaks the next screen pick.
+        close_original_session();
+        capture->original_session = false;
+    }
     std::lock_guard<std::mutex> lock(handles_mutex);
     handles.erase(handle);
     ++destroyed;
